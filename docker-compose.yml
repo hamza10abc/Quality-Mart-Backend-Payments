@@ -1,0 +1,56 @@
+name: qm-${ENV_NAME}-payments
+
+services:
+  app:
+    build: .
+    container_name: qm-${ENV_NAME}-payments-app
+    restart: unless-stopped
+    environment:
+      DB_HOST: qm-${ENV_NAME}-payments-db
+      DB_PORT: 5432
+      DB_USER_NAME: ${DB_USER_NAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      TCP_PORT: ${TCP_PORT:-4011}
+      ORDER_SERVICE_HOST: ${ORDER_SERVICE_HOST}
+      ORDER_SERVICE_PORT: ${ORDER_SERVICE_PORT:-4009}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-stripe}
+      PAYMENT_METHODS: ${PAYMENT_METHODS:-card,upi,netbanking}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_UPI_RETURN_URL: ${STRIPE_UPI_RETURN_URL:-}
+    ports:
+      # Only needed for direct debugging; Gateway/Order reach it over the internal network.
+      - "${HTTP_HOST_PORT}:3011"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - qm-net
+
+  db:
+    image: postgres:16-alpine
+    container_name: qm-${ENV_NAME}-payments-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER_NAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER_NAME} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - qm-net
+
+volumes:
+  db-data:
+    name: qm-${ENV_NAME}-payments-db-data
+
+networks:
+  qm-net:
+    name: ${NETWORK_NAME}
+    external: true
